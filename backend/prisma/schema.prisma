@@ -14,26 +14,76 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum PositionStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  ARCHIVED
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  TEMPORARY
+}
+
+enum ApplicationStatus {
+  RECEIVED
+  UNDER_REVIEW
+  INTERVIEWING
+  OFFERED
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+enum InterviewResult {
+  PENDING
+  PASSED
+  FAILED
+  ON_HOLD
+}
+
+enum EmployeeRole {
+  RECRUITER
+  HIRING_MANAGER
+  INTERVIEWER
+  ADMIN
+}
+
+// ---------------------------------------------------------------------------
+// Candidate domain (existente — fusionado, no recreado)
+// ---------------------------------------------------------------------------
+
 model Candidate {
-  id                Int               @id @default(autoincrement())
-  firstName         String            @db.VarChar(100)
-  lastName          String            @db.VarChar(100)
-  email             String            @unique @db.VarChar(255)
-  phone             String?           @db.VarChar(15)
-  address           String?           @db.VarChar(100)
-  educations        Education[]
-  workExperiences   WorkExperience[]
-  resumes           Resume[]
+  id              Int              @id @default(autoincrement())
+  firstName       String           @db.VarChar(100)
+  lastName        String           @db.VarChar(100)
+  email           String           @unique @db.VarChar(255)
+  phone           String?          @db.VarChar(15)
+  address         String?          @db.VarChar(100)
+  educations      Education[]
+  workExperiences WorkExperience[]
+  resumes         Resume[]
+  applications    Application[]
 }
 
 model Education {
-  id            Int       @id @default(autoincrement())
-  institution   String    @db.VarChar(100)
-  title         String    @db.VarChar(250)
-  startDate     DateTime
-  endDate       DateTime?
-  candidateId   Int
-  candidate     Candidate @relation(fields: [candidateId], references: [id])
+  id          Int       @id @default(autoincrement())
+  institution String    @db.VarChar(100)
+  title       String    @db.VarChar(250)
+  startDate   DateTime
+  endDate     DateTime?
+  candidateId Int
+  candidate   Candidate @relation(fields: [candidateId], references: [id])
+
+  @@index([candidateId])
 }
 
 model WorkExperience {
@@ -45,6 +95,8 @@ model WorkExperience {
   endDate     DateTime?
   candidateId Int
   candidate   Candidate @relation(fields: [candidateId], references: [id])
+
+  @@index([candidateId])
 }
 
 model Resume {
@@ -54,4 +106,155 @@ model Resume {
   uploadDate  DateTime
   candidateId Int
   candidate   Candidate @relation(fields: [candidateId], references: [id])
+
+  @@index([candidateId])
+}
+
+// ---------------------------------------------------------------------------
+// Company & Employee
+// ---------------------------------------------------------------------------
+
+model Company {
+  id        Int        @id @default(autoincrement())
+  name      String     @db.VarChar(255)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  employees Employee[]
+  positions Position[]
+}
+
+model Employee {
+  id         Int          @id @default(autoincrement())
+  companyId  Int
+  name       String       @db.VarChar(255)
+  email      String       @unique @db.VarChar(255)
+  role       EmployeeRole
+  isActive   Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  company    Company      @relation(fields: [companyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  interviews Interview[]
+
+  @@index([companyId])
+  @@index([isActive])
+}
+
+// ---------------------------------------------------------------------------
+// Position
+// ---------------------------------------------------------------------------
+
+model Position {
+  id                  Int             @id @default(autoincrement())
+  companyId           Int
+  interviewFlowId     Int
+  title               String          @db.VarChar(255)
+  description         String?         @db.Text
+  status              PositionStatus  @default(DRAFT)
+  isVisible           Boolean         @default(false)
+  location            String?         @db.VarChar(255)
+  jobDescription      String?         @db.Text
+  requirements        String?         @db.Text
+  responsibilities    String?         @db.Text
+  salaryMin           Decimal?        @db.Decimal(10, 2)
+  salaryMax           Decimal?        @db.Decimal(10, 2)
+  employmentType      EmploymentType?
+  benefits            String?         @db.Text
+  companyDescription  String?         @db.Text
+  applicationDeadline DateTime?       @db.Date
+  contactInfo         String?         @db.VarChar(255)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  company             Company         @relation(fields: [companyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  interviewFlow       InterviewFlow   @relation(fields: [interviewFlowId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  applications        Application[]
+
+  @@index([companyId])
+  @@index([interviewFlowId])
+  @@index([status])
+  @@index([isVisible])
+  @@index([applicationDeadline])
+}
+
+// ---------------------------------------------------------------------------
+// Interview flow definition
+// ---------------------------------------------------------------------------
+
+model InterviewFlow {
+  id          Int             @id @default(autoincrement())
+  description String          @db.VarChar(255)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  positions   Position[]
+  steps       InterviewStep[]
+}
+
+model InterviewType {
+  id          Int             @id @default(autoincrement())
+  name        String          @unique @db.VarChar(255)
+  description String?         @db.Text
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  steps       InterviewStep[]
+}
+
+model InterviewStep {
+  id              Int           @id @default(autoincrement())
+  interviewFlowId Int
+  interviewTypeId Int
+  name            String        @db.VarChar(255)
+  orderIndex      Int
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  interviewFlow   InterviewFlow @relation(fields: [interviewFlowId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  interviewType   InterviewType @relation(fields: [interviewTypeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  interviews      Interview[]
+
+  @@unique([interviewFlowId, orderIndex])
+  @@index([interviewFlowId])
+  @@index([interviewTypeId])
+}
+
+// ---------------------------------------------------------------------------
+// Application & Interview (runtime)
+// ---------------------------------------------------------------------------
+
+model Application {
+  id              Int               @id @default(autoincrement())
+  positionId      Int
+  candidateId     Int
+  applicationDate DateTime          @default(now())
+  status          ApplicationStatus @default(RECEIVED)
+  notes           String?           @db.Text
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  position        Position          @relation(fields: [positionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  candidate       Candidate         @relation(fields: [candidateId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  interviews      Interview[]
+
+  @@unique([positionId, candidateId])
+  @@index([positionId])
+  @@index([candidateId])
+  @@index([status])
+  @@index([applicationDate])
+}
+
+model Interview {
+  id              Int             @id @default(autoincrement())
+  applicationId   Int
+  interviewStepId Int
+  employeeId      Int
+  interviewDate   DateTime?
+  result          InterviewResult @default(PENDING)
+  score           Int?
+  notes           String?         @db.Text
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  application     Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  interviewStep   InterviewStep   @relation(fields: [interviewStepId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  employee        Employee        @relation(fields: [employeeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([applicationId])
+  @@index([interviewStepId])
+  @@index([employeeId])
+  @@index([interviewDate])
 }
