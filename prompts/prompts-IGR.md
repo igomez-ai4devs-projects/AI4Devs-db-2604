@@ -368,3 +368,86 @@ Nota: el .env ya define DATABASE_URL, así que Prisma la toma automáticamente; 
 Estado actual: ya ejecuté los pasos 0, 1 y 2. La migración está en migration.sql, revisada y con los CHECK inyectados. Falta el paso 3 (aplicarla) — espero tu OK para lanzarlo.
 
 </br>
+
+## Prompt 6:
+
+Agent: Claude Code - Sonnet 4.6
+
+### Request:
+
+Verificación con PGAdmin Quiero verificar visualmente la estructura con PGAdmin. Dame:
+
+1. Pasos para conectar PGAdmin a mi PostgreSQL en Docker (host, puerto 5432, base LTIdb, usuario LTIdbUser) y cómo comprobar que la conexión funciona.
+2. Una consulta SQL para listar todas las tablas del esquema public y otra para inspeccionar, de una tabla concreta, sus columnas, tipos, claves foráneas e índices (information_schema / pg_indexes).
+3. Cómo confirmar en PGAdmin que las relaciones (FKs) e índices del ERD se crearon correctamente.
+
+### Response:
+
+Checklist de lo que debes ver para dar la estructura por correcta:
+
+✅ 12 tablas de dominio + \_prisma_migrations.
+
+✅ UNIQUE en Candidate.email, Employee.email, InterviewType.name, InterviewStep(interviewFlowId, orderIndex), Application(positionId, candidateId).
+
+✅ Índices \*\_idx en todas las columnas FK y en status/fechas/isVisible/isActive.
+
+✅ 12 FKs con sus reglas RESTRICT/CASCADE.
+
+✅ 4 CHECK (Position*salary*\*, Interview_score_range_check, InterviewStep_orderIndex_nonnegative_check).
+
+</br>
+
+## Prompt 7:
+
+Agent: Claude Code - Sonnet 4.6
+
+### Request:
+
+Insertar datos de prueba
+
+Genera sentencias SQL (o un seed de Prisma, lo que recomiendes) para insertar datos de ejemplo coherentes que cubran el flujo completo: una Company con Employees, un InterviewFlow con sus InterviewStep e InterviewType, una Position publicada, un Candidate que crea una Application, y al menos un Interview asociado conducido por un Employee.
+
+Asegúrate de respetar el orden de inserción por las claves foráneas. Incluye comentarios.
+
+### Response:
+
+Datos de prueba insertados y el flujo completo verificado en una sola consulta que enlaza las 8 entidades.
+
+Qué se insertó (respetando el orden de FKs)
+
+- Company — LTI Talent S.L.
+- Employee ×2 — Ana Gómez (RECRUITER), Luis Pérez (INTERVIEWER)
+- InterviewType ×3 — HR Screening, Technical Test, Final Interview
+- InterviewFlow — "Flujo estándar para roles de ingeniería"
+- InterviewStep ×3 — orden 1/2/3, cada uno con su tipo
+- Position — Senior Backend Engineer, OPEN y visible, salario 45k–65k
+- Candidate — María López
+- Application — María → posición, estado INTERVIEWING
+- Interview — paso "Prueba técnica", conducida por Luis Pérez, PASSED, score 85
+
+El script quedó guardado en seed.sql, envuelto en BEGIN/COMMIT (atómico).
+
+</br>
+
+## Prompt 8:
+
+Agent: Claude Code - Sonnet 4.6
+
+### Request:
+
+Consultas de comprobación (joins, agregaciones)
+
+Para validar el modelo, escríbeme consultas SQL representativas con JOINs y agregaciones, aplicando buenas prácticas (índices que aprovechan, evitar N+1):
+
+1. Todas las aplicaciones de una posición con nombre del candidato y estado.
+2. Por posición: número de aplicaciones recibidas y nota media (AVG score) de las entrevistas.
+3. Agenda de entrevistas de un employee con candidato, posición y paso de entrevista.
+4. Un ejemplo con CTE + window function (p. ej. ranking de candidatos por score medio por posición).
+
+Para cada query, indica qué índice la acelera y por qué.
+
+### Response:
+
+Las 4 consultas se ejecutan correctamente contra los datos. Quedan guardadas en queries.sql.
+
+</br>
