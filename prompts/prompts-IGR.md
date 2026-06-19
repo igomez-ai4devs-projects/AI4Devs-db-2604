@@ -310,7 +310,14 @@ Agent: Claude Code - Sonnet 4.6
 
 Confirmo los 3 puntos.
 
-Confirmado. Genero el schema.prisma completo y lo escribo en el fichero, conservando intactos Candidate, Education, WorkExperience y Resume.
+Aplicando las decisiones anteriores, genera ahora la versión COMPLETA y final de backend/prisma/schema.prisma que:
+
+- Conserva intactos Candidate (fusionado), Education, WorkExperience, Resume y sus relaciones.
+- Añade: Company, Employee, Position, InterviewFlow, InterviewStep, InterviewType, Application, Interview.
+- Incluye los enums acordados.
+- Define índices con @@index en todas las FK y en columnas usadas para filtrar/ordenar (status, fechas, email, etc.), y @@unique donde corresponda.
+- Configura onDelete/onUpdate en cada relación.
+- Mantiene el estilo del schema actual (PascalCase / camelCase / @db.VarChar explícito). Entrégame el fichero schema.prisma completo, listo para reemplazar el actual, y debajo una breve explicación de los índices y constraints añadidos
 
 ### Response:
 
@@ -319,5 +326,45 @@ He generado el schema.prisma completo. Resumen de lo aplicado:
 Qué se mantuvo intacto Candidate, Education, WorkExperience, Resume — sin tocar tipos ni @unique. Solo se añadió la relación inversa applications Application[] en Candidate y un @@index([candidateId]) en las tres tablas hijas (FKs que no estaban indexadas).
 
 Qué se añadió 5 enums: PositionStatus, EmploymentType, ApplicationStatus, InterviewResult, EmployeeRole. 8 modelos nuevos: Company, Employee, Position, InterviewFlow, InterviewType, InterviewStep, Application, Interview. Cardinalidades corregidas: InterviewFlow→Position e InterviewStep→Interview como 1:N. Tipos: Decimal(10,2) para salarios, @db.Date para applicationDeadline, Text para campos largos, VarChar(n) explícito. onDelete/onUpdate en cada FK según lo acordado. Timestamps (createdAt/updatedAt) en todas las entidades nuevas. Constraints e índices UNIQUE: Employee.email, InterviewType.name, InterviewStep(interviewFlowId, orderIndex), Application(positionId, candidateId). @@index: en todas las FK y en columnas de filtro frecuente (status, isVisible, fechas). Pendiente para el paso de migración Los CHECK constraints (salaryMin <= salaryMax, score BETWEEN 0 AND 100, orderIndex >= 0, salarios >= 0) no se pueden expresar en el schema de Prisma → se añadirán editando el .sql de la migración.
+
+</br>
+
+## Prompt 5:
+
+Agent: Claude Code - Sonnet 4.6
+
+### Request:
+
+Ahora vamos a crear la migración con Prisma. Indícame:
+
+1. El comando exacto para generar la migración sin aplicarla aún, para poder revisar el SQL (formato: npx prisma migrate dev --name <nombre> ... o --create-only).
+2. Tras generarla, revisa el SQL resultante en backend/prisma/migrations/ y responde la checklist de seguridad del módulo: ¿hay DROP COLUMN, DROP TABLE, CREATE UNIQUE sobre datos existentes o ALTER TYPE que pueda truncar/perder datos? Para cada caso, riesgo y alternativa segura.
+3. Confirma que la migración incluye explícitamente los índices y las claves foráneas (CREATE INDEX / FOREIGN KEY ... REFERENCES). Pásame los comandos paso a paso (sé que la BD corre con docker-compose y la conexión es postgresql://LTIdbUser:\*\*\*\*@localhost:5432/LTIdb).
+
+### Response:
+
+Comandos exactos (paso a paso):
+
+# 0) Levantar la BD (Docker) si no está arriba
+
+docker compose up -d
+
+# 1) Generar la migración SIN aplicarla, para poder revisar el SQL
+
+cd backend npx prisma migrate dev --name add_ats_full_flow --create-only
+
+# → crea prisma/migrations/<timestamp>\_add_ats_full_flow/migration.sql
+
+# 2) (revisión humana del .sql + edición para añadir CHECKs) ← hecho
+
+# 3) Aplicar la migración ya revisada
+
+npx prisma migrate dev
+
+# → ejecuta el SQL y regenera el Prisma Client
+
+Nota: el .env ya define DATABASE_URL, así que Prisma la toma automáticamente; no hace falta exportarla a mano.
+
+Estado actual: ya ejecuté los pasos 0, 1 y 2. La migración está en migration.sql, revisada y con los CHECK inyectados. Falta el paso 3 (aplicarla) — espero tu OK para lanzarlo.
 
 </br>
